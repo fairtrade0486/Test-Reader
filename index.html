@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>텍스트 리더</title>
+  <meta name="description" content="광고 없는 깔끔한 텍스트 파일 리더">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="텍스트 리더">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <style>
+    :root {
+      --bg: #0f0f1a;
+      --surface: #1a1a2e;
+      --surface2: #22223b;
+      --accent: #7c6af7;
+      --accent2: #a99ff7;
+      --text: #e8e6f0;
+      --text2: #9994b8;
+      --border: rgba(124,106,247,0.2);
+      --highlight: rgba(124,106,247,0.35);
+      --radius: 14px;
+      --font-body: 'Georgia', 'Nanum Myeongjo', serif;
+      --font-ui: -apple-system, 'Pretendard', 'Noto Sans KR', sans-serif;
+    }
+    html.light {
+      --bg: #f5f4ff;
+      --surface: #ffffff;
+      --surface2: #ede9fe;
+      --accent: #6d59f0;
+      --accent2: #5b45e0;
+      --text: #1e1b2e;
+      --text2: #6b6490;
+      --border: rgba(109,89,240,0.18);
+      --highlight: rgba(109,89,240,0.2);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); overflow: hidden; }
+
+    /* Header */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px 10px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    #header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent2);
+      letter-spacing: 0.02em;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .icon-btn {
+      width: 36px; height: 36px;
+      border: none; background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .icon-btn:active, .icon-btn.on { background: var(--highlight); color: var(--accent2); }
+
+    /* Main layout */
+    #app { display: flex; flex-direction: column; height: 100%; }
+    #main { flex: 1; overflow: hidden; position: relative; }
+
+    /* Drop zone */
+    #drop-zone {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+    }
+    #drop-zone.hidden { display: none; }
+    .drop-icon {
+      width: 80px; height: 80px;
+      border-radius: 20px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      margin-bottom: 4px;
+    }
+    #drop-zone h2 { font-size: 18px; font-weight: 600; color: var(--text); }
+    #drop-zone p { font-size: 13px; color: var(--text2); line-height: 1.6; max-width: 260px; }
+    #open-btn {
+      margin-top: 8px;
+      padding: 12px 28px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 24px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      box-shadow: 0 4px 24px rgba(124,106,247,0.35);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #open-btn:active { transform: scale(0.97); box-shadow: 0 2px 12px rgba(124,106,247,0.25); }
+
+    /* Search bar */
+    #search-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    #search-bar.hidden { display: none; }
+    #search-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 7px 10px;
+      font-family: var(--font-ui);
+      outline: none;
+    }
+    #search-input:focus { border-color: var(--accent); }
+    #search-count { font-size: 12px; color: var(--text2); white-space: nowrap; min-width: 50px; text-align: right; }
+
+    /* Reader */
+    #reader {
+      position: absolute; inset: 0;
+      overflow-y: auto;
+      padding: 20px 18px 40px;
+      display: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    #reader.visible { display: block; }
+    #content {
+      font-size: 16px;
+      line-height: 1.9;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: var(--font-body);
+      max-width: 680px;
+      margin: 0 auto;
+    }
+    #content.mono {
+      font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    mark.hl {
+      background: rgba(124,106,247,0.4);
+      color: var(--accent2);
+      border-radius: 3px;
+      padding: 0 1px;
+    }
+
+    /* Bottom stats bar */
+    #stats-bar {
+      display: none;
+      padding: 8px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text2);
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    #stats-bar.visible { display: flex; }
+
+    /* Settings panel */
+    #settings-panel {
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: min(280px, 85vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      z-index: 10;
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    #settings-panel.open { transform: translateX(0); }
+    .setting-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text2);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .setting-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .setting-row input[type=range] {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+    .setting-row span {
+      font-size: 13px;
+      color: var(--text);
+      min-width: 32px;
+      text-align: right;
+    }
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 0;
+    }
+    .toggle-row span { font-size: 14px; color: var(--text); }
+    .toggle {
+      width: 44px; height: 24px;
+      border-radius: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--accent); border-color: var(--accent); }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* Overlay */
+    #overlay {
+      display: none;
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 9;
+    }
+    #overlay.visible { display: block; }
+
+    /* Theme toggle btn */
+    #btn-theme { font-size: 18px; }
+
+    /* History panel */
+    #history-panel {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: min(300px, 88vw);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      z-index: 10;
+      transform: translateX(-100%);
+      transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+      display: flex;
+      flex-direction: column;
+    }
+    #history-panel.open { transform: translateX(0); }
+    #history-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #history-header h2 {
+      font-size: 14px; font-weight: 600;
+      color: var(--accent2); letter-spacing: 0.04em;
+    }
+    #history-list {
+      flex: 1; overflow-y: auto;
+      padding: 8px 0;
+    }
+    .history-item {
+      display: flex; align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      cursor: pointer;
+      transition: background 0.12s;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-item:active { background: var(--highlight); }
+    .history-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .history-info { flex: 1; overflow: hidden; }
+    .history-name {
+      font-size: 13px; font-weight: 500; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .history-meta {
+      font-size: 11px; color: var(--text2); margin-top: 2px;
+    }
+    .history-del {
+      width: 28px; height: 28px;
+      border: none; background: transparent;
+      color: var(--text2); font-size: 14px;
+      border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; opacity: 0.6;
+    }
+    .history-del:active { background: var(--surface2); opacity: 1; }
+    #history-empty {
+      padding: 40px 20px; text-align: center;
+      color: var(--text2); font-size: 13px; line-height: 1.8;
+    }
+    #history-clear {
+      margin: 12px 16px;
+      padding: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text2);
+      font-size: 13px; cursor: pointer;
+      font-family: var(--font-ui);
+      flex-shrink: 0;
+    }
+    #history-clear:active { color: var(--text); }
+
+    /* Drop zone history hint */
+    #recent-hint {
+      margin-top: 4px;
+      font-size: 12px; color: var(--accent);
+      cursor: pointer; text-decoration: underline;
+      background: none; border: none;
+      font-family: var(--font-ui);
+    }
+
+    /* Splash screen */
+    #splash {
+      position: fixed; inset: 0;
+      background: #0f0f1a;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 24px;
+      z-index: 999;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+    #splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .splash-grid-bg {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(124,106,247,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,106,247,0.05) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    .splash-glow {
+      position: absolute;
+      width: 400px; height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(124,106,247,0.12) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .splash-logo { position: relative; z-index: 1; animation: splashFadeUp 0.6s ease both; }
+    .splash-title {
+      position: relative; z-index: 1;
+      font-size: 22px; font-weight: 700;
+      color: #e8e6f0;
+      letter-spacing: 0.18em;
+      animation: splashFadeUp 0.6s 0.1s ease both;
+    }
+    .splash-sub {
+      position: relative; z-index: 1;
+      font-size: 11px; color: #7c6af7;
+      letter-spacing: 0.14em;
+      margin-top: -16px;
+      animation: splashFadeUp 0.6s 0.15s ease both;
+    }
+    .splash-bar-wrap {
+      position: relative; z-index: 1;
+      width: 100px; height: 2px;
+      background: rgba(124,106,247,0.2);
+      border-radius: 2px; overflow: hidden;
+      animation: splashFadeUp 0.6s 0.2s ease both;
+    }
+    .splash-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7c6af7, #a99ff7);
+      border-radius: 2px;
+      animation: splashLoad 1.2s 0.3s ease forwards;
+      width: 0;
+    }
+    @keyframes splashFadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes splashLoad {
+      from { width: 0; }
+      to   { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<!-- Splash Screen -->
+<div id="splash" aria-label="로딩 화면" aria-live="polite">
+  <div class="splash-grid-bg"></div>
+  <div class="splash-glow"></div>
+
+  <!-- DH Logo SVG -->
+  <div class="splash-logo">
+    <svg width="96" height="96" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="UniDoc 로고">
+      <defs>
+        <linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#a99ff7"/>
+          <stop offset="100%" style="stop-color:#7c6af7"/>
+        </linearGradient>
+        <linearGradient id="lg2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#c4bdf9"/>
+          <stop offset="100%" style="stop-color:#a99ff7"/>
+        </linearGradient>
+      </defs>
+      <!-- Hexagon -->
+      <polygon points="60,6 108,33 108,87 60,114 12,87 12,33"
+               fill="#1a1a2e" stroke="url(#lg1)" stroke-width="2.5"/>
+      <!-- D -->
+      <path d="M28 37 L28 83 L47 83 Q72 83 72 60 Q72 37 47 37 Z"
+            fill="url(#lg1)"/>
+      <path d="M37 47 L37 73 L46 73 Q62 73 62 60 Q62 47 46 47 Z"
+            fill="#1a1a2e"/>
+      <!-- H -->
+      <rect x="76" y="37" width="7.5" height="46" fill="url(#lg2)" rx="1"/>
+      <rect x="96.5" y="37" width="7.5" height="46" fill="url(#lg2)" rx="1"/>
+      <rect x="76" y="56" width="28" height="7.5" fill="url(#lg2)" rx="1"/>
+    </svg>
+  </div>
+
+  <div class="splash-title">UniDoc</div>
+  <div class="splash-sub">텍스트 리더</div>
+  <div class="splash-bar-wrap">
+    <div class="splash-bar-fill"></div>
+  </div>
+</div>
+
+<div id="app">
+  <!-- Header -->
+  <div id="header" style="display:none" aria-label="툴바">
+    <button class="icon-btn" id="btn-close" onclick="closeFile()" aria-label="파일 닫기">←</button>
+    <h1 id="filename-label">텍스트 리더</h1>
+    <button class="icon-btn" id="btn-search-toggle" onclick="toggleSearch()" aria-label="검색">🔍</button>
+    <button class="icon-btn" id="btn-theme" onclick="toggleTheme()" aria-label="테마 전환">🌙</button>
+    <button class="icon-btn" id="btn-settings" onclick="toggleSettings()" aria-label="설정">⚙️</button>
+  </div>
+
+  <!-- Search bar -->
+  <div id="search-bar" class="hidden">
+    <input type="text" id="search-input" placeholder="검색어를 입력하세요..." oninput="doSearch(this.value)" aria-label="검색">
+    <span id="search-count"></span>
+    <button class="icon-btn" onclick="clearSearch()" aria-label="검색 초기화">✕</button>
+  </div>
+
+  <!-- Main area -->
+  <div id="main">
+    <!-- History panel -->
+    <div id="history-panel" aria-label="최근 파일">
+      <div id="history-header">
+        <h2>📂 최근 파일</h2>
+        <button class="icon-btn" onclick="closeHistory()" aria-label="닫기" style="width:28px;height:28px;font-size:16px;">✕</button>
+      </div>
+      <div id="history-list"></div>
+      <button id="history-clear" onclick="clearHistory()">전체 삭제</button>
+    </div>
+
+    <!-- Drop zone -->
+    <div id="drop-zone" role="button" aria-label="파일 선택">
+      <div class="drop-icon" onclick="document.getElementById('file-input').click()">📄</div>
+      <h2 onclick="document.getElementById('file-input').click()">파일을 불러오세요</h2>
+      <p onclick="document.getElementById('file-input').click()">.txt, .md, .csv, .json, .log 등<br>텍스트 파일을 지원합니다</p>
+      <button id="open-btn" onclick="document.getElementById('file-input').click()">파일 열기</button>
+      <button id="recent-hint" onclick="openHistory()">최근 파일 보기</button>
+    </div>
+
+    <!-- Reader -->
+    <div id="reader" aria-label="파일 내용">
+      <div id="content"></div>
+    </div>
+
+    <!-- Settings panel overlay -->
+    <div id="overlay" onclick="closeSettings();closeHistory();" class=""></div>
+
+    <!-- Settings panel -->
+    <div id="settings-panel" aria-label="설정">
+      <div class="setting-group">
+        <label>글자 크기</label>
+        <div class="setting-row">
+          <span style="font-size:12px">가</span>
+          <input type="range" min="12" max="26" value="16" id="font-slider" oninput="setFontSize(this.value)" aria-label="글자 크기 조절">
+          <span style="font-size:18px">가</span>
+          <span id="font-val">16px</span>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label>줄 간격</label>
+        <div class="setting-row">
+          <input type="range" min="14" max="30" value="19" id="line-slider" oninput="setLineHeight(this.value)" aria-label="줄 간격 조절">
+          <span id="line-val">1.9</span>
+        </div>
+      </div>
+      <div class="setting-group">
+        <label>표시 옵션</label>
+        <div class="toggle-row">
+          <span>코드 글꼴 (고정폭)</span>
+          <div class="toggle" id="toggle-mono" onclick="toggleMono()" role="switch" aria-checked="false"></div>
+        </div>
+      </div>
+      <div class="setting-group" style="margin-top:auto">
+        <button onclick="copyAll()" style="width:100%;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;cursor:pointer;font-family:var(--font-ui)">📋 전체 복사</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div id="stats-bar" aria-label="문서 통계">
+    <span id="stat-chars">0 글자</span>
+    <span>·</span>
+    <span id="stat-lines">0 줄</span>
+    <span>·</span>
+    <span id="stat-words">0 단어</span>
+    <span>·</span>
+    <span id="stat-time">읽기 0분</span>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".txt,.md,.csv,.json,.log,.xml,.html,.js,.ts,.py,.css,.java,.c,.cpp,.h,.yaml,.yml,.toml,.ini,.sh,.bat,.jsx,.tsx,.vue,.php,.rb,.go,.rs,.swift,.kt" style="display:none" onchange="loadFile(this.files[0])">
+
+<script>
+// Splash screen dismiss
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const splash = document.getElementById('splash');
+    if (splash) splash.classList.add('hidden');
+  }, 1600);
+});
+
+// ── Theme ──────────────────────────────────────────
+let isLight = localStorage.getItem('theme') === 'light';
+function applyTheme() {
+  document.documentElement.classList.toggle('light', isLight);
+  document.getElementById('btn-theme').textContent = isLight ? '☀️' : '🌙';
+  document.querySelector('meta[name="theme-color"]').content = isLight ? '#f5f4ff' : '#1a1a2e';
+}
+function toggleTheme() {
+  isLight = !isLight;
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  applyTheme();
+}
+applyTheme();
+
+// ── File History ────────────────────────────────────
+const HISTORY_KEY = 'textreader_history';
+const MAX_HISTORY = 20;
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+  catch { return []; }
+}
+function saveHistory(name, size, chars) {
+  let hist = getHistory().filter(h => h.name !== name);
+  hist.unshift({ name, size, chars, date: Date.now() });
+  if (hist.length > MAX_HISTORY) hist = hist.slice(0, MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+  renderHistory();
+}
+function deleteHistoryItem(name) {
+  const hist = getHistory().filter(h => h.name !== name);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+  renderHistory();
+}
+function clearHistory() {
+  if (!confirm('최근 파일 목록을 모두 삭제할까요?')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+function fmtDate(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return '방금 전';
+  if (diff < 3600) return Math.floor(diff / 60) + '분 전';
+  if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
+  if (diff < 86400 * 7) return Math.floor(diff / 86400) + '일 전';
+  return d.toLocaleDateString('ko-KR');
+}
+function getFileEmoji(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = { md: '📝', json: '📦', csv: '📊', log: '🪵', js: '🟨', ts: '🔷', py: '🐍', html: '🌐', css: '🎨', xml: '📄' };
+  return map[ext] || '📄';
+}
+function renderHistory() {
+  const hist = getHistory();
+  const list = document.getElementById('history-list');
+  if (!hist.length) {
+    list.innerHTML = '<div id="history-empty">아직 열어본 파일이 없어요.<br>파일을 열면 여기에 기록됩니다.</div>';
+    return;
+  }
+  list.innerHTML = hist.map(h => `
+    <div class="history-item" onclick="loadFromHistory('${encodeURIComponent(h.name)}')">
+      <div class="history-icon">${getFileEmoji(h.name)}</div>
+      <div class="history-info">
+        <div class="history-name">${h.name}</div>
+        <div class="history-meta">${fmtDate(h.date)} · ${fmtSize(h.size)} · ${h.chars.toLocaleString()}자</div>
+      </div>
+      <button class="history-del" onclick="event.stopPropagation();deleteHistoryItem('${encodeURIComponent(h.name)}')" aria-label="삭제">✕</button>
+    </div>
+  `).join('');
+}
+function loadFromHistory(encodedName) {
+  closeHistory();
+  // 파일명만 기록되므로, 파일 선택 안내
+  const name = decodeURIComponent(encodedName);
+  alert(`"${name}" 파일을 다시 선택해주세요.\n(보안상 파일 내용은 저장되지 않아요)`);
+  document.getElementById('file-input').click();
+}
+function openHistory() {
+  renderHistory();
+  document.getElementById('history-panel').classList.add('open');
+  document.getElementById('overlay').classList.add('visible');
+}
+function closeHistory() {
+  document.getElementById('history-panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('visible');
+}
+
+let rawText = '';
+let currentFileName = '';
+
+function loadFile(file) {
+  if (!file) return;
+  currentFileName = file.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    rawText = e.target.result;
+    renderContent(rawText);
+    document.getElementById('filename-label').textContent = file.name;
+    document.getElementById('drop-zone').classList.add('hidden');
+    document.getElementById('header').style.display = 'flex';
+    document.getElementById('reader').classList.add('visible');
+    document.getElementById('stats-bar').classList.add('visible');
+    updateStats(rawText);
+    saveHistory(file.name, file.size, rawText.length);
+  };
+  reader.onerror = () => alert('파일을 읽을 수 없습니다.');
+  reader.readAsText(file, 'UTF-8');
+}
+
+function renderContent(text) {
+  document.getElementById('content').textContent = text;
+}
+
+function updateStats(text) {
+  const chars = text.length;
+  const lines = text.split('\n').length;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const mins = Math.max(1, Math.round(words / 250));
+  document.getElementById('stat-chars').textContent = chars.toLocaleString() + ' 글자';
+  document.getElementById('stat-lines').textContent = lines.toLocaleString() + ' 줄';
+  document.getElementById('stat-words').textContent = words.toLocaleString() + ' 단어';
+  document.getElementById('stat-time').textContent = '읽기 ' + mins + '분';
+}
+
+function closeFile() {
+  rawText = ''; currentFileName = '';
+  document.getElementById('drop-zone').classList.remove('hidden');
+  document.getElementById('header').style.display = 'none';
+  document.getElementById('reader').classList.remove('visible');
+  document.getElementById('stats-bar').classList.remove('visible');
+  document.getElementById('search-bar').classList.add('hidden');
+  document.getElementById('btn-search-toggle').classList.remove('on');
+  clearSearch();
+  closeSettings();
+  document.getElementById('file-input').value = '';
+}
+
+function toggleSearch() {
+  const bar = document.getElementById('search-bar');
+  const btn = document.getElementById('btn-search-toggle');
+  const hidden = bar.classList.toggle('hidden');
+  btn.classList.toggle('on', !hidden);
+  if (!hidden) document.getElementById('search-input').focus();
+  else clearSearch();
+}
+
+function doSearch(query) {
+  const content = document.getElementById('content');
+  const countEl = document.getElementById('search-count');
+  if (!query.trim()) {
+    content.textContent = rawText;
+    countEl.textContent = '';
+    return;
+  }
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(escaped, 'gi');
+  const matches = rawText.match(regex);
+  const n = matches ? matches.length : 0;
+  countEl.textContent = n > 0 ? n + '개' : '없음';
+  content.innerHTML = rawText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(new RegExp(escaped.replace(/&/g,'&amp;'), 'gi'), m => `<mark class="hl">${m}</mark>`);
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-count').textContent = '';
+  if (rawText) document.getElementById('content').textContent = rawText;
+}
+
+function setFontSize(v) {
+  document.getElementById('content').style.fontSize = v + 'px';
+  document.getElementById('font-val').textContent = v + 'px';
+}
+
+function setLineHeight(v) {
+  document.getElementById('content').style.lineHeight = (v / 10).toFixed(1);
+  document.getElementById('line-val').textContent = (v / 10).toFixed(1);
+}
+
+function toggleMono() {
+  const t = document.getElementById('toggle-mono');
+  const on = t.classList.toggle('on');
+  t.setAttribute('aria-checked', on);
+  document.getElementById('content').classList.toggle('mono', on);
+}
+
+function copyAll() {
+  if (!rawText) return;
+  navigator.clipboard.writeText(rawText).then(() => {
+    alert('클립보드에 복사됐어요!');
+  }).catch(() => alert('복사에 실패했습니다.'));
+}
+
+function toggleSettings() {
+  document.getElementById('settings-panel').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('visible');
+}
+
+function closeSettings() {
+  document.getElementById('settings-panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('visible');
+}
+
+// Drag and drop on reader
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
