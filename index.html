@@ -100,7 +100,7 @@
     }
     #drop-zone h2 { font-size: 18px; font-weight: 600; color: var(--text); }
     #drop-zone p { font-size: 13px; color: var(--text2); line-height: 1.6; max-width: 260px; }
-    #open-btn {
+    #open-folder-btn, #open-btn {
       margin-top: 8px;
       padding: 12px 28px;
       background: var(--accent);
@@ -114,7 +114,7 @@
       box-shadow: 0 4px 24px rgba(124,106,247,0.35);
       transition: transform 0.1s, box-shadow 0.1s;
     }
-    #open-btn:active { transform: scale(0.97); box-shadow: 0 2px 12px rgba(124,106,247,0.25); }
+    #open-folder-btn:active, #open-btn:active { transform: scale(0.97); box-shadow: 0 2px 12px rgba(124,106,247,0.25); }
 
     /* Search bar */
     #search-bar {
@@ -461,8 +461,19 @@
     <button class="icon-btn" id="btn-close" onclick="closeFile()" aria-label="파일 닫기">←</button>
     <h1 id="filename-label">텍스트 리더</h1>
     <button class="icon-btn" id="btn-search-toggle" onclick="toggleSearch()" aria-label="검색">🔍</button>
+    <button class="icon-btn" id="btn-edit" onclick="toggleEdit()" aria-label="편집 모드">✏️</button>
     <button class="icon-btn" id="btn-theme" onclick="toggleTheme()" aria-label="테마 전환">🌙</button>
     <button class="icon-btn" id="btn-settings" onclick="toggleSettings()" aria-label="설정">⚙️</button>
+  </div>
+
+  <!-- Find/Replace bar -->
+  <div id="replace-bar" class="hidden" style="display:none;flex-direction:column;gap:6px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);">
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" id="find-input" placeholder="찾기..." style="flex:1;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;">
+      <input type="text" id="replace-input" placeholder="바꾸기..." style="flex:1;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;">
+      <button onclick="doReplace()" style="padding:7px 12px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:13px;cursor:pointer;">바꾸기</button>
+      <button onclick="doReplaceAll()" style="padding:7px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer;">전체</button>
+    </div>
   </div>
 
   <!-- Search bar -->
@@ -486,16 +497,21 @@
 
     <!-- Drop zone -->
     <div id="drop-zone" role="button" aria-label="파일 선택">
-      <div class="drop-icon" onclick="document.getElementById('file-input').click()">📄</div>
-      <h2 onclick="document.getElementById('file-input').click()">파일을 불러오세요</h2>
-      <p onclick="document.getElementById('file-input').click()">.txt, .md, .csv, .json, .log 등<br>텍스트 파일을 지원합니다</p>
-      <button id="open-btn" onclick="document.getElementById('file-input').click()">파일 열기</button>
+      <div style="position:absolute;top:16px;right:16px;">
+        <button class="icon-btn" onclick="toggleSettings()" aria-label="설정">⚙️</button>
+      </div>
+      <div class="drop-icon">📄</div>
+      <h2>파일을 불러오세요</h2>
+      <p>.txt, .md, .csv, .json, .log 등<br>텍스트 파일을 지원합니다</p>
+      
+      <button id="open-folder-btn" onclick="openFolder()">📁 폴더 탐색</button>
       <button id="recent-hint" onclick="openHistory()">최근 파일 보기</button>
     </div>
 
     <!-- Reader -->
     <div id="reader" aria-label="파일 내용">
       <div id="content"></div>
+      <textarea id="editor" style="display:none;width:100%;height:100%;background:transparent;border:none;outline:none;color:var(--text);font-size:16px;line-height:1.9;padding:20px;resize:none;font-family:var(--font-body);box-sizing:border-box;"></textarea>
     </div>
 
     <!-- Settings panel overlay -->
@@ -503,6 +519,13 @@
 
     <!-- Settings panel -->
     <div id="settings-panel" aria-label="설정">
+      <div class="setting-group">
+        <label>테마</label>
+        <div class="toggle-row">
+          <span>라이트 모드</span>
+          <div class="toggle" id="toggle-theme" onclick="toggleTheme()" role="switch" aria-checked="false"></div>
+        </div>
+      </div>
       <div class="setting-group">
         <label>글자 크기</label>
         <div class="setting-row">
@@ -527,7 +550,8 @@
         </div>
       </div>
       <div class="setting-group" style="margin-top:auto">
-        <button onclick="copyAll()" style="width:100%;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;cursor:pointer;font-family:var(--font-ui)">📋 전체 복사</button>
+        <button onclick="copyAll()" style="width:100%;padding:11px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;cursor:pointer;font-family:var(--font-ui);margin-bottom:8px;">📋 전체 복사</button>
+        <button onclick="saveFile()" style="width:100%;padding:11px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:14px;cursor:pointer;font-family:var(--font-ui)">💾 파일 저장</button>
       </div>
     </div>
   </div>
@@ -544,9 +568,75 @@
   </div>
 </div>
 
-<input type="file" id="file-input" accept=".txt,.md,.csv,.json,.log,.xml,.html,.js,.ts,.py,.css,.java,.c,.cpp,.h,.yaml,.yml,.toml,.ini,.sh,.bat,.jsx,.tsx,.vue,.php,.rb,.go,.rs,.swift,.kt" style="display:none" onchange="loadFile(this.files[0])">
+<input type="file" id="file-input" accept="*/*" style="display:none" onchange="loadFile(this.files[0])">
 
 <script>
+// ── Edit Mode ──────────────────────────────────────
+let isEditMode = false;
+
+function toggleEdit() {
+  isEditMode = !isEditMode;
+  const content = document.getElementById('content');
+  const editor = document.getElementById('editor');
+  const btn = document.getElementById('btn-edit');
+  const replaceBar = document.getElementById('replace-bar');
+
+  if (isEditMode) {
+    // Switch to edit mode
+    editor.value = rawText;
+    content.style.display = 'none';
+    editor.style.display = 'block';
+    btn.textContent = '💾';
+    btn.setAttribute('aria-label', '저장');
+    replaceBar.style.display = 'flex';
+    replaceBar.classList.remove('hidden');
+    editor.focus();
+  } else {
+    // Save and back to read mode
+    rawText = editor.value;
+    renderContent(rawText);
+    updateStats(rawText);
+    content.style.display = '';
+    editor.style.display = 'none';
+    btn.textContent = '✏️';
+    btn.setAttribute('aria-label', '편집 모드');
+    replaceBar.style.display = 'none';
+  }
+}
+
+function saveFile() {
+  const text = isEditMode ? document.getElementById('editor').value : rawText;
+  const filename = document.getElementById('filename-label').textContent || 'edited.txt';
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function doReplace() {
+  const find = document.getElementById('find-input').value;
+  const replace = document.getElementById('replace-input').value;
+  if (!find) return;
+  const editor = document.getElementById('editor');
+  const idx = editor.value.indexOf(find);
+  if (idx === -1) { alert('찾을 수 없어요'); return; }
+  editor.value = editor.value.slice(0, idx) + replace + editor.value.slice(idx + find.length);
+}
+
+function doReplaceAll() {
+  const find = document.getElementById('find-input').value;
+  const replace = document.getElementById('replace-input').value;
+  if (!find) return;
+  const editor = document.getElementById('editor');
+  const count = (editor.value.split(find).length - 1);
+  if (count === 0) { alert('찾을 수 없어요'); return; }
+  editor.value = editor.value.split(find).join(replace);
+  alert(count + '개 바꿨어요');
+}
+
 // Splash screen dismiss
 window.addEventListener('load', () => {
   setTimeout(() => {
@@ -560,6 +650,9 @@ let isLight = localStorage.getItem('theme') === 'light';
 function applyTheme() {
   document.documentElement.classList.toggle('light', isLight);
   document.getElementById('btn-theme').textContent = isLight ? '☀️' : '🌙';
+  const themeToggle = document.getElementById('toggle-theme');
+  if (themeToggle) themeToggle.setAttribute('aria-checked', isLight ? 'true' : 'false');
+  if (themeToggle) themeToggle.classList.toggle('on', isLight);
   document.querySelector('meta[name="theme-color"]').content = isLight ? '#f5f4ff' : '#1a1a2e';
 }
 function toggleTheme() {
@@ -775,8 +868,90 @@ document.addEventListener('drop', e => {
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.getRegistrations().then(regs => { regs.forEach(r => r.unregister()); }); navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 </script>
 </body>
 </html>
+<script>
+// ── Folder Browser ──────────────────────────────────
+let folderHandle = null;
+let folderFiles = [];
+
+async function openFolder() {
+  if (!('showDirectoryPicker' in window)) {
+    alert('이 브라우저는 폴더 탐색을 지원하지 않아요.\n크롬 브라우저를 사용해주세요!');
+    return;
+  }
+  try {
+    folderHandle = await window.showDirectoryPicker();
+    await loadFolderFiles(folderHandle);
+    showFolderPanel();
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('폴더를 열 수 없어요.');
+  }
+}
+
+async function loadFolderFiles(handle, path = '') {
+  folderFiles = [];
+  const textExts = ['txt','md','csv','json','log','js','ts','py','html','css','xml','yaml','yml','ini','sh','jsx','tsx'];
+  for await (const entry of handle.values()) {
+    if (entry.kind === 'file') {
+      const ext = entry.name.split('.').pop().toLowerCase();
+      if (textExts.includes(ext)) {
+        folderFiles.push({ name: entry.name, handle: entry });
+      }
+    }
+  }
+  folderFiles.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function showFolderPanel() {
+  let panel = document.getElementById('folder-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'folder-panel';
+    panel.style.cssText = `
+      position:fixed; inset:0; background:var(--bg); z-index:20;
+      display:flex; flex-direction:column;
+    `;
+    document.body.appendChild(panel);
+  }
+  const name = folderHandle ? folderHandle.name : '폴더';
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--surface);border-bottom:1px solid var(--border);">
+      <button onclick="closeFolderPanel()" style="background:none;border:none;color:var(--accent);font-size:20px;cursor:pointer;">←</button>
+      <span style="font-size:14px;font-weight:600;color:var(--text);flex:1;">📁 ${name}</span>
+      <span style="font-size:12px;color:var(--text2);">${folderFiles.length}개 파일</span>
+    </div>
+    <div style="flex:1;overflow-y:auto;">
+      ${folderFiles.length === 0
+        ? '<div style="padding:40px;text-align:center;color:var(--text2);">텍스트 파일이 없어요</div>'
+        : folderFiles.map((f, i) => `
+          <div onclick="openFolderFile(${i})" style="padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:20px;">${getFileEmoji(f.name)}</span>
+            <span style="font-size:14px;color:var(--text);">${f.name}</span>
+          </div>
+        `).join('')
+      }
+    </div>
+  `;
+  panel.style.display = 'flex';
+}
+
+function closeFolderPanel() {
+  const panel = document.getElementById('folder-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+async function openFolderFile(index) {
+  const entry = folderFiles[index];
+  try {
+    const file = await entry.handle.getFile();
+    closeFolderPanel();
+    loadFile(file);
+  } catch (e) {
+    alert('파일을 열 수 없어요.');
+  }
+}
+</script>
